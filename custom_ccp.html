@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Custom CCP - Outbound Call</title>
+  <style>
+    /* Basic styling */
+    #ccpContainer {
+      width: 400px;
+      height: 600px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+    }
+    #outboundControls {
+      margin-top: 10px;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="ccpContainer"></div>
+  <div id="outboundControls">
+    <input type="text" id="phoneNumber" placeholder="Enter phone number" />
+    <button id="startOutboundBtn">Start Outbound Call</button>
+  </div>
+  <div id="status">Status: Idle</div>
+  <!-- include Streams library -->
+  <script src="https://cdn.jsdelivr.net/npm/amazon-connect-streams/release/connect-streams-min.js"></script>
+  <script>
+    (function() {
+      const ccpContainerDiv = document.getElementById('ccpContainer');
+      const startBtn = document.getElementById('startOutboundBtn');
+      const phoneNumberInput = document.getElementById('phoneNumber');
+      const statusDiv = document.getElementById('status');
+      // Initialize CCP
+      connect.core.initCCP(ccpContainerDiv, {
+        ccpUrl: "https://levi-ackerman10.my.connect.aws/ccp-v2",   // **CHANGE** to your CCP URL
+        loginPopup: true,                // optional
+        region: "us-east-1",             // your region
+        softphone: {
+          allowFramedSoftphone: true,    // set depending on your requirement
+          disableRingtone: false
+        }
+      });
+      let currentContact = null;
+      function setStatus(msg) {
+        statusDiv.textContent = "Status: " + msg;
+      }
+      // Listen for agent login/ready
+      connect.agent((agent) => {
+        setStatus("Agent logged: " + agent.getName());
+        // You may subscribe to agent state changes:
+        agent.onStateChange((stateChange) => {
+          console.log("Agent state changed:", stateChange);
+          setStatus("Agent state: " + stateChange.newState);
+        });
+      });
+      // Function to initiate outbound call
+      function startOutboundCall(number) {
+        setStatus("Starting outbound call to " + number);
+        // Use connect.contact to initiate
+        const outboundParams = {
+          destinationPhoneNumber: number,
+          // optionally you can include `queueARN`, `contactAttributes`, etc
+        };
+        connect.core.contact(function(contact) {
+          // Not used
+        });
+        // Actually create the outbound
+        const contact = connect.agent().contacts().createOutboundContact(outboundParams);
+        currentContact = contact;
+        // Subscribe to its lifecycle events
+        contact.onConnected(() => {
+          console.log("Outbound connected.");
+          setStatus("Call connected to " + number);
+        });
+        contact.onEnded((endedInfo) => {
+          console.log("Contact ended:", endedInfo);
+          setStatus("Call ended");
+          currentContact = null;
+        });
+        contact.onError((err) => {
+          console.error("Contact error:", err);
+          setStatus("Call error: " + err);
+          currentContact = null;
+        });
+        // You can subscribe to other events: onMissed, onACW, etc
+      }
+      // Button click binding
+      startBtn.addEventListener('click', () => {
+        const num = phoneNumberInput.value.trim();
+        if (!num) {
+          alert("Please enter a phone number");
+          return;
+        }
+        startOutboundCall(num);
+      });
+    })();
+  </script>
+</body>
+</html>
